@@ -3,6 +3,7 @@ import { type ViewStyle, Text } from "react-native";
 import {
   Camera,
   useCameraDevice,
+  type CameraDeviceFormat,
   type CameraPosition,
   type CameraProps,
 } from "react-native-vision-camera";
@@ -13,6 +14,7 @@ export type MediapipeCameraProps = {
   solution: MediaPipeSolution;
   activeCamera?: CameraPosition;
   resizeMode?: CameraProps["resizeMode"];
+  format?: CameraDeviceFormat | undefined;
 };
 
 export const MediapipeCamera = forwardRef<Camera, MediapipeCameraProps>(
@@ -28,6 +30,7 @@ export const MediapipeCamera = forwardRef<Camera, MediapipeCameraProps>(
       },
       activeCamera = "front",
       resizeMode = "cover",
+      format,
     },
     ref
   ) => {
@@ -55,6 +58,7 @@ export const MediapipeCamera = forwardRef<Camera, MediapipeCameraProps>(
         device={device}
         pixelFormat="rgb"
         isActive={true}
+        format={format}
         frameProcessor={frameProcessor}
         onLayout={cameraViewLayoutChangeHandler}
         onOutputOrientationChanged={cameraOrientationChangedHandler}
