@@ -44,7 +44,7 @@ function App() {
     maxResults: 5,
     threshold: 20,
     processor: Delegate.GPU,
-    model: "pose_landmarker_lite",
+    model: "pose_landmarker_full",
   });
 
   return (

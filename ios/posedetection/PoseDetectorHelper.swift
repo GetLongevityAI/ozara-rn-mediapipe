@@ -125,10 +125,10 @@ class PoseDetectorHelper: NSObject {
   }
 
   func detectAsync(
-    sampleBuffer: CMSampleBuffer,
+    image: UIImage,
     orientation: UIImage.Orientation,
     timeStamps: Int) {
-      guard let image = try? MPImage(sampleBuffer: sampleBuffer, orientation: orientation) else {
+      guard let image = try? MPImage(uiImage: image) else {
       return
     }
     do {

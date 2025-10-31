@@ -21,6 +21,11 @@ import { useSettings } from "./app-settings";
 import { PoseDrawFrame } from "./Drawing";
 import { useSharedValue } from "react-native-reanimated";
 import { vec, type SkPoint } from "@shopify/react-native-skia";
+import {
+  build_keypoints_from_landmarks,
+  ExerciseProcessor,
+  PoseFeatureExtractor,
+} from "typescript-pose-lib";
 
 type Props = BottomTabScreenProps<RootTabParamList, "CameraStream">;
 
@@ -31,6 +36,19 @@ export const CameraStream: React.FC<Props> = () => {
   const [permsGranted, setPermsGranted] = React.useState<{
     cam: boolean;
   }>({ cam: camPerm.hasPermission });
+
+  const extractorRef = React.useRef(new PoseFeatureExtractor());
+  const processorRef = React.useRef(
+    new ExerciseProcessor({
+      rep_phases_order: ["standing"],
+      pose_vectors: [[0]],
+      labels: ["standing"],
+      distance_threshold: 0.25,
+      phase_change_persistence: 3,
+      joint_order: ["left_hip", "right_hip"],
+    })
+  );
+
   const askForPermissions = React.useCallback(() => {
     if (camPerm.hasPermission) {
       setPermsGranted((prev) => ({ ...prev, cam: true }));
@@ -52,24 +70,6 @@ export const CameraStream: React.FC<Props> = () => {
 
   const onResults = React.useCallback(
     (results: PoseDetectionResultBundle, vc: ViewCoordinator): void => {
-      // console.log(
-      //   JSON.stringify({
-      //     inftime: results.inferenceTime,
-      //     width: results.inputImageWidth,
-      //     height: results.inputImageHeight,
-      //     // norm: results.results[0].landmarks[0][0],
-      //     // world: results.results[0].worldLandmarks[0][0],
-      //   })
-      // );
-      // console.log(
-      //   "results",
-      //   JSON.stringify({
-      //     p:
-      //       results.results[0].landmarks[0]
-      //         ?.slice(0, 10)
-      //         .map((p) => ({ x: p.x.toFixed(2), y: p.y.toFixed(2) })) ?? [],
-      //   })
-      // );
       const frameDims = vc.getFrameDims(results);
       const pts = results.results[0].landmarks[0] ?? [];
       const newLines: SkPoint[] = [];
@@ -85,6 +85,38 @@ export const CameraStream: React.FC<Props> = () => {
         }
       }
       connections.value = newLines;
+
+      const landmarksPts = results.results[0].landmarks[0] ?? [];
+      const worldLandmarksPts = results.results[0].worldLandmarks[0] ?? [];
+
+      if (landmarksPts.length === 0 || worldLandmarksPts.length === 0) {
+        return;
+      }
+
+      const keypoints2d = build_keypoints_from_landmarks(landmarksPts, {
+        coordinate_space: "image",
+      });
+
+      const keypoints3d = build_keypoints_from_landmarks(worldLandmarksPts, {
+        coordinate_space: "world",
+      });
+
+      let joint_angles = null;
+      try {
+        const { joint_angles_relative } =
+          extractorRef.current.get_pose_features_3d(keypoints3d, false);
+        joint_angles = joint_angles_relative;
+      } catch (err) {
+        console.error("Error extracting joint angles:", err);
+      }
+
+      const result = processorRef.current.evaluate_full_body_frame_feedback(
+        keypoints2d,
+        joint_angles
+      );
+
+      console.log(result.orientation);
+      console.log(result.feedback);
     },
     [connections]
   );
@@ -100,8 +132,9 @@ export const CameraStream: React.FC<Props> = () => {
     `${settings.model}.task`,
     {
       fpsMode: "none",
-      // forceOutputOrientation: "portrait-upside-down",
-      // forceCameraOrientation: "landscape-left",
+      forceOutputOrientation: "portrait",
+      forceCameraOrientation: "portrait",
+      mirrorMode: "mirror-front-only",
     } // supply a number instead to get a specific framerate
   );
 
